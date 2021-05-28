@@ -36,13 +36,14 @@ C2B: 有没有活人？	(Are there any living people? )	[Transferable]
 
 1. Data processing
     To construct the vocabulary from the pre-trained word embeddings and corpus.  For the security of private information from customers, we performed the data desensitization and converted words to IDs. We save the processed data into pickle file.
-    ```
+    ```bash
     python data_prepare.py
     ```
     The pickle object contains: dialogue contents (word ID), role information, term frequency, POS tag, sentiment, length of utterance, length of dialogue, handoff labels
 2. Train the model
+    ```bash
     python main.py --phase train --model_name dami --data_name clothing --memory 0 --suffix .128 --mode train  --ways dami
-
+    ```
 
 ## Data
 
