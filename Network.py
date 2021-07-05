@@ -10,38 +10,19 @@ sys.path.insert(0, os.path.dirname(curdir))
 prodir = '..'
 sys.path.insert(0, prodir)
 
-import pickle as pkl
 import logging
-import json
-import time
-import jieba
-import jieba.posseg as pseg
-import numpy as np
-import pandas as pd
 import warnings
-warnings.filterwarnings('ignore',category=FutureWarning)
-import tensorflow as tf
+
+warnings.filterwarnings('ignore', category=FutureWarning)
 from utility import *
-from keras.preprocessing.sequence import pad_sequences
-from keras.preprocessing.text import one_hot
-from keras.utils import to_categorical
-from matplotlib import pyplot as plt
-import matplotlib.gridspec as mg
-from matplotlib.pyplot import cm
-from matplotlib.backends.backend_pdf import PdfPages
-from sklearn.metrics import f1_score, auc, roc_curve
-from sklearn.manifold import TSNE
-from bhtsne import tsne as bhtsne
-from snownlp import SnowNLP
-import seaborn as sns
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import auc, roc_curve, confusion_matrix, classification_report
 
 
 class Network(object):
     """
     Parent class for all tensorflow networks.
     """
+
     def __init__(self, vocab=None, sent_max_len=50, dia_max_len=30, nb_classes=2, nb_words=5000,
                  embedding_dim=200, dense_dim=128, rnn_dim=128, keep_prob=0.5, lr=0.001,
                  weight_decay=0.0, l2_reg_lambda=0.0, optim='adam', gpu='0', memory=0, **kwargs):
@@ -186,7 +167,8 @@ class Network(object):
     def _get_a_p_r_f_sara(self, input_y, prediction, category):
         target_class = np.array(np.argmax(input_y, axis=-1))
         pre_class = np.array(np.argmax(prediction, axis=-1))
-        accuracy, precision, recall, f1score, sara_f1score, f0_5score, f2score = get_a_p_r_f_sara(target_class, pre_class, category)
+        accuracy, precision, recall, f1score, sara_f1score, f0_5score, f2score = get_a_p_r_f_sara(target_class,
+                                                                                                  pre_class, category)
         return accuracy, precision, recall, f1score, sara_f1score, f0_5score, f2score
 
     def _inference(self):
@@ -203,23 +185,29 @@ class Network(object):
         self.sent_len_reshape = tf.reshape(self.sent_len, shape=[-1])
 
         with tf.name_scope('sent_encoding'):
-            self.sent_encoder_output, self.sent_encoder_state = self._bidirectional_rnn(self.embedded_reshaped, self.sent_len_reshape)
+            self.sent_encoder_output, self.sent_encoder_state = self._bidirectional_rnn(self.embedded_reshaped,
+                                                                                        self.sent_len_reshape)
             if self.dropout_keep_prob != 1:
                 # [B * D_len, 2 * H]
                 self.sent_encoder_state = tf.nn.dropout(self.sent_encoder_state, keep_prob=self.dropout_keep_prob)
-        
+
         with tf.name_scope('sequence_context_encoding'):
             # [B, D_len, 2 * H]
             self.sent_encoder_reshape = tf.reshape(self.sent_encoder_state, [-1, self.dia_max_len, 2 * self.rnn_dim])
             # RNN
-            cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(self.rnn_dim, state_is_tuple=True), output_keep_prob=self.dropout_keep_prob)]
+            cells = [tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(self.rnn_dim, state_is_tuple=True),
+                                                   output_keep_prob=self.dropout_keep_prob)]
             rnn_cell = tf.contrib.rnn.MultiRNNCell(cells, state_is_tuple=True)
             # [B, D_len, H] [B, H]
-            self.dia_encoder_output, self.dia_encoder_state = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.sent_encoder_reshape, sequence_length=self.dia_len, dtype=tf.float32)
+            self.dia_encoder_output, self.dia_encoder_state = tf.nn.dynamic_rnn(cell=rnn_cell,
+                                                                                inputs=self.sent_encoder_reshape,
+                                                                                sequence_length=self.dia_len,
+                                                                                dtype=tf.float32)
 
         with tf.name_scope('position_predict'):
             # [B, D_len]
-            self.position_dense_prob = tf.keras.layers.Dense(units=self.dia_max_len, activation=tf.nn.softmax)(self.dia_encoder_output[:, -1, :])
+            self.position_dense_prob = tf.keras.layers.Dense(units=self.dia_max_len, activation=tf.nn.softmax)(
+                self.dia_encoder_output[:, -1, :])
 
         with tf.name_scope('dialogue_mask'):
 
@@ -237,14 +225,15 @@ class Network(object):
         if rnn_type == 'lstm':
             fw_rnn_cell = tf.nn.rnn_cell.LSTMCell(self.rnn_dim)
             fw_rnn_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(fw_rnn_cell,
-                                                                input_keep_prob=self.dropout_keep_prob,
-                                                                output_keep_prob=self.dropout_keep_prob)
+                                                                  input_keep_prob=self.dropout_keep_prob,
+                                                                  output_keep_prob=self.dropout_keep_prob)
             bw_rnn_cell = tf.nn.rnn_cell.LSTMCell(self.rnn_dim)
             bw_rnn_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(bw_rnn_cell,
-                                                                input_keep_prob=self.dropout_keep_prob,
-                                                                output_keep_prob=self.dropout_keep_prob)
+                                                                  input_keep_prob=self.dropout_keep_prob,
+                                                                  output_keep_prob=self.dropout_keep_prob)
             outputs, output_states = \
-                tf.nn.bidirectional_dynamic_rnn(fw_rnn_cell, bw_rnn_cell, inputs, sequence_length=length, dtype=tf.float32)
+                tf.nn.bidirectional_dynamic_rnn(fw_rnn_cell, bw_rnn_cell, inputs, sequence_length=length,
+                                                dtype=tf.float32)
             # outputs, output_states = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(fw_rnn_cell), backward_layer=tf.keras.layers.LSTM(bw_rnn_cell))
             fw_state, bw_state = output_states
             fw_c, fw_h = fw_state
@@ -257,18 +246,19 @@ class Network(object):
         elif rnn_type == 'gru':
             fw_rnn_cell = tf.nn.rnn_cell.GRUCell(self.rnn_dim)
             fw_rnn_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(fw_rnn_cell,
-                                                                input_keep_prob=self.dropout_keep_prob,
-                                                                output_keep_prob=self.dropout_keep_prob)
+                                                                  input_keep_prob=self.dropout_keep_prob,
+                                                                  output_keep_prob=self.dropout_keep_prob)
             bw_rnn_cell = tf.nn.rnn_cell.GRUCell(self.rnn_dim)
             bw_rnn_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(bw_rnn_cell,
-                                                                input_keep_prob=self.dropout_keep_prob,
-                                                                output_keep_prob=self.dropout_keep_prob)
+                                                                  input_keep_prob=self.dropout_keep_prob,
+                                                                  output_keep_prob=self.dropout_keep_prob)
             outputs, output_states = \
-                tf.nn.bidirectional_dynamic_rnn(fw_rnn_cell, bw_rnn_cell, inputs, sequence_length=length, dtype=tf.float32)
+                tf.nn.bidirectional_dynamic_rnn(fw_rnn_cell, bw_rnn_cell, inputs, sequence_length=length,
+                                                dtype=tf.float32)
 
             final_output = tf.concat(outputs, -1)
             final_state = tf.concat(output_states, -1)
-        
+
         return final_output, final_state
 
     def _compute_loss(self):
@@ -312,13 +302,13 @@ class Network(object):
 
         print('Using train DAMI trainer without CRF.')
         max_val = 0
-        
+
         for epoch in range(epochs):
             self.logger.info('Training the model for epoch {} with batch size {}'.format(epoch, batch_size))
             print('Training the model for epoch {} with batch size {}'.format(epoch, batch_size))
             counter, total_loss = 0, 0.0
 
-            # Useing 4 GST
+            # Useing 4 GTT
             total_labels = []
             total_pre_logits = []
             # Using 4 IR metrics
@@ -327,21 +317,22 @@ class Network(object):
             total_pre_scores_flat = np.array([])
 
             for x1, x2, x3, Y, sent_len, dia_len, tfs, pos_list in data_generator(data_name=data_name, mode=mode,
-                                                                        batch_size=batch_size, nb_classes=nb_classes,
-                                                                        shuffle=shuffle, epoch=epoch):
+                                                                                  batch_size=batch_size,
+                                                                                  nb_classes=nb_classes,
+                                                                                  shuffle=shuffle, epoch=epoch):
 
                 feed_dict = {self.input_x1: x1,
-                            self.input_x2: x2,
-                            self.input_x3: x3,
-                            self.tfs: tfs,
-                            self.pos_list: pos_list,
-                            self.dia_len: dia_len,
-                            self.sent_len: sent_len,
-                            self.input_y: Y,
-                            self.dropout_keep_prob: keep_prob}
+                             self.input_x2: x2,
+                             self.input_x3: x3,
+                             self.tfs: tfs,
+                             self.pos_list: pos_list,
+                             self.dia_len: dia_len,
+                             self.sent_len: sent_len,
+                             self.input_y: Y,
+                             self.dropout_keep_prob: keep_prob}
                 try:
                     _, step, loss, sequence, scores = self.sess.run([self.train_op, self.global_step,
-                                                                    self.loss, self.output, self.proba],
+                                                                     self.loss, self.output, self.proba],
                                                                     feed_dict)
                     Y = np.argmax(Y, -1)
                     tmp_labels = np.array([])
@@ -356,7 +347,7 @@ class Network(object):
                             tmp_labels = np.concatenate([tmp_labels, Y[batch_id, :dia_len[batch_id]]])
                             tmp_pre_seq = np.concatenate([tmp_pre_seq, sequence[batch_id, :dia_len[batch_id]]])
                             tmp_pre_scores = np.concatenate([tmp_pre_scores, scores[batch_id, :dia_len[batch_id], 1]])
-                        
+
                         total_labels.append(Y[batch_id, :dia_len[batch_id]])
                         total_pre_logits.append(sequence[batch_id, :dia_len[batch_id]])
 
@@ -368,44 +359,43 @@ class Network(object):
                         total_labels_flat = np.concatenate([total_labels_flat, tmp_labels], axis=0)
                         total_pre_logits_flat = np.concatenate([total_pre_logits_flat, tmp_pre_seq], axis=0)
                         total_pre_scores_flat = np.concatenate([total_pre_scores_flat, tmp_pre_scores], axis=0)
-                    
+
                     total_loss += loss
                     counter += 1
 
                 except ValueError as e:
                     self.logger.info("Wrong batch.{}".format(e))
 
-            
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=self.lamb)
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=self.lamb)
 
             total_acc_sent, total_p_sent, total_r_sent, total_f1_sent, total_macro_sent, _, _ = \
                 get_a_p_r_f_sara(target=total_labels_flat, predict=total_pre_logits_flat, category=1)
-            
+
             # calc AUC score
             fpr, tpr, thresholds = roc_curve(total_labels_flat, total_pre_scores_flat, pos_label=1)
             auc_score = auc(fpr, tpr)
-            
+
             print(confusion_matrix(total_labels_flat, total_pre_logits_flat))
             self.logger.info(
-                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGS-I:%.4f\tGS-II:%.4f\tGS-III:%.4f"
-                % (mode, total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gst_1, gst_2, gst_3))
+                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGT-I:%.4f\tGT-II:%.4f\tGT-III:%.4f"
+                % (mode, total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gtt_1,
+                   gtt_2, gtt_3))
             self.logger.info("#############################################")
 
             if is_val:
-                eval_loss, accuracy, f1score, macro_f1score, gs1, gs2, gs3 = \
+                eval_loss, accuracy, f1score, macro_f1score, gt1, gt2, gt3 = \
                     self.evaluate_batch(data_generator, data_name, mode=val_mode,
-                                            batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
+                                        batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
 
                 metrics_dict = {"loss": eval_loss, "accuracy": accuracy, "macro_f1": macro_f1score,
                                 "f1score": f1score, "auc": auc_score,
-                                "gs1": gs1, "gs2": gs2, "gs3": gs3}
+                                "gt1": gt1, "gt2": gt2, "gt3": gt3}
 
                 if metrics_dict["f1score"] > max_val and save_best:
                     max_val = metrics_dict["f1score"]
                     self.save(self.save_dir, self.model_name + '.best')
 
-        self.save(self.save_dir, self.model_name+'.last')
-        
+        self.save(self.save_dir, self.model_name + '.last')
 
         if is_test:
             self.restore(self.save_dir, self.model_name + '.best')
@@ -416,7 +406,7 @@ class Network(object):
                        batch_size=20, nb_classes=2, shuffle=False):
         counter, total_loss = 0, 0.0
 
-        # Useing 4 GST
+        # Useing 4 GTT
         total_labels = []
         total_pre_logits = []
         # Using 4 IR metrics
@@ -424,16 +414,18 @@ class Network(object):
         total_pre_logits_flat = np.array([])
         total_pre_scores_flat = np.array([])
 
-        for x1, x2, x3, y, sent_len, dia_len, tfs, pos_list in data_generator(data_name=data_name, mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle):
+        for x1, x2, x3, y, sent_len, dia_len, tfs, pos_list in data_generator(data_name=data_name, mode=mode,
+                                                                              batch_size=batch_size,
+                                                                              nb_classes=nb_classes, shuffle=shuffle):
             feed_dict = {self.input_x1: x1,
-                        self.input_x2: x2,
-                        self.input_x3: x3,
-                        self.tfs: tfs,
-                        self.pos_list: pos_list,
-                        self.input_y: y,
-                        self.sent_len: sent_len,
-                        self.dia_len: dia_len,
-                        self.dropout_keep_prob: 1.0}
+                         self.input_x2: x2,
+                         self.input_x3: x3,
+                         self.tfs: tfs,
+                         self.pos_list: pos_list,
+                         self.input_y: y,
+                         self.sent_len: sent_len,
+                         self.dia_len: dia_len,
+                         self.dropout_keep_prob: 1.0}
 
             loss, sequence, scores = self.sess.run([self.loss, self.output, self.proba], feed_dict)
             y = np.argmax(y, -1)
@@ -449,7 +441,7 @@ class Network(object):
                     tmp_labels = np.concatenate([tmp_labels, y[batch_id, :dia_len[batch_id]]])
                     tmp_pre_seq = np.concatenate([tmp_pre_seq, sequence[batch_id, :dia_len[batch_id]]])
                     tmp_pre_scores = np.concatenate([tmp_pre_scores, scores[batch_id, :dia_len[batch_id], 1]])
-                
+
                 total_labels.append(y[batch_id, :dia_len[batch_id]])
                 total_pre_logits.append(sequence[batch_id, :dia_len[batch_id]])
 
@@ -461,76 +453,78 @@ class Network(object):
                 total_labels_flat = np.concatenate([total_labels_flat, tmp_labels], axis=0)
                 total_pre_logits_flat = np.concatenate([total_pre_logits_flat, tmp_pre_seq], axis=0)
                 total_pre_scores_flat = np.concatenate([total_pre_scores_flat, tmp_pre_scores], axis=0)
-            
+
             total_loss += loss
             counter += 1
 
-        gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=self.lamb)
+        gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=self.lamb)
 
         total_acc_sent, total_p_sent, total_r_sent, total_f1_sent, total_macro_sent, _, _ = \
             get_a_p_r_f_sara(target=total_labels_flat, predict=total_pre_logits_flat, category=1)
-        
+
         fpr, tpr, thresholds = roc_curve(total_labels_flat, total_pre_scores_flat, pos_label=1)
         auc_score = auc(fpr, tpr)
-        
+
         print(confusion_matrix(total_labels_flat, total_pre_logits_flat))
         self.logger.info(
-                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGS-I:%.4f\tGS-II:%.4f\tGS-III:%.4f"
-                % (mode, total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gst_1, gst_2, gst_3))
+            "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGT-I:%.4f\tGT-II:%.4f\tGT-III:%.4f"
+            % (
+            mode, total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gtt_1, gtt_2,
+            gtt_3))
         if mode == 'test':
             self.logger.info(
-                "Handoff point %s\tF1Score\tMacro_F1Score\tAUC\tGS-I\tGS-II\tGS-III")
+                "Handoff point %s\tF1Score\tMacro_F1Score\tAUC\tGT-I\tGT-II\tGT-III")
             self.logger.info(
                 "Metrics %s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f"
-                % (mode, total_f1_sent * 100, total_macro_sent * 100, auc_score * 100, gst_1 * 100, gst_2 * 100, gst_3 * 100))
-            tmp_lambda=0.99
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.75
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.5
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.25
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.25
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.5
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.75
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.99
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
+                % (mode, total_f1_sent * 100, total_macro_sent * 100, auc_score * 100, gtt_1 * 100, gtt_2 * 100,
+                   gtt_3 * 100))
+            tmp_lambda = 0.99
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.75
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.5
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.25
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.25
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.5
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.75
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.99
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
 
             self.logger.info(classification_report(total_labels_flat, total_pre_logits_flat, digits=4))
             self.logger.info(confusion_matrix(total_labels_flat, total_pre_logits_flat))
 
-        return total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, gst_1, gst_2, gst_3 
-
+        return total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, gtt_1, gtt_2, gtt_3
 
     def train_crf(self, data_generator, keep_prob, epochs, data_name,
-              mode='train', batch_size=20, nb_classes=2, shuffle=True,
-              is_val=True, is_test=True, save_best=True,
-              val_mode='eval', test_mode='test'):
+                  mode='train', batch_size=20, nb_classes=2, shuffle=True,
+                  is_val=True, is_test=True, save_best=True,
+                  val_mode='eval', test_mode='test'):
         print('Using train crf trainer.')
         max_val = 0
-        
+
         for epoch in range(epochs):
             self.logger.info('Training the model for epoch {} with batch size {}'.format(epoch, batch_size))
             print('Training the model for epoch {} with batch size {}'.format(epoch, batch_size))
 
             counter, total_loss = 0, 0.0
 
-            # Useing 4 GST
+            # Useing 4 GTT
             total_labels = []
             total_pre_logits = []
             # Using 4 IR metrics
@@ -539,19 +533,19 @@ class Network(object):
             total_pre_scores_flat = np.array([])
 
             for x1, x2, x3, Y, sent_len, dia_len in data_generator(data_name=data_name, mode=mode,
-                                                                batch_size=batch_size, nb_classes=nb_classes,
-                                                                shuffle=shuffle, epoch=epoch):
+                                                                   batch_size=batch_size, nb_classes=nb_classes,
+                                                                   shuffle=shuffle, epoch=epoch):
 
                 feed_dict = {self.input_x1: x1,
-                            self.input_x2: x2,
-                            self.input_x3: x3,
-                            self.dia_len: dia_len,
-                            self.sent_len: sent_len,
-                            self.input_y: Y,
-                            self.dropout_keep_prob: keep_prob}
+                             self.input_x2: x2,
+                             self.input_x3: x3,
+                             self.dia_len: dia_len,
+                             self.sent_len: sent_len,
+                             self.input_y: Y,
+                             self.dropout_keep_prob: keep_prob}
                 try:
                     _, step, loss, sequence, scores = self.sess.run([self.train_op, self.global_step,
-                                                                    self.loss, self.viterbi_sequence, self.proba],
+                                                                     self.loss, self.viterbi_sequence, self.proba],
                                                                     feed_dict)
                     tmp_labels = np.array([])
                     tmp_pre_seq = np.array([])
@@ -565,7 +559,7 @@ class Network(object):
                             tmp_labels = np.concatenate([tmp_labels, Y[batch_id, :dia_len[batch_id]]])
                             tmp_pre_seq = np.concatenate([tmp_pre_seq, sequence[batch_id, :dia_len[batch_id]]])
                             tmp_pre_scores = np.concatenate([tmp_pre_scores, scores[batch_id, :dia_len[batch_id], 1]])
-                        
+
                         total_labels.append(Y[batch_id, :dia_len[batch_id]])
                         total_pre_logits.append(sequence[batch_id, :dia_len[batch_id]])
 
@@ -577,52 +571,52 @@ class Network(object):
                         total_labels_flat = np.concatenate([total_labels_flat, tmp_labels], axis=0)
                         total_pre_logits_flat = np.concatenate([total_pre_logits_flat, tmp_pre_seq], axis=0)
                         total_pre_scores_flat = np.concatenate([total_pre_scores_flat, tmp_pre_scores], axis=0)
-                    
+
                     total_loss += loss
                     counter += 1
-                
+
                 except ValueError as e:
                     self.logger.info("Wrong batch.{}".format(e))
 
-            
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=self.lamb)
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=self.lamb)
 
             total_acc_sent, total_p_sent, total_r_sent, total_f1_sent, total_macro_sent, _, _ = \
                 get_a_p_r_f_sara(target=total_labels_flat, predict=total_pre_logits_flat, category=1)
-            
+
             fpr, tpr, thresholds = roc_curve(total_labels_flat, total_pre_scores_flat, pos_label=1)
             auc_score = auc(fpr, tpr)
-            
+
             print(confusion_matrix(total_labels_flat, total_pre_logits_flat))
             self.logger.info(
-                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGS-I:%.4f\tGS-II:%.4f\tGS-III:%.4f"
-                % (mode, total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gst_1, gst_2, gst_3))
+                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGT-I:%.4f\tGT-II:%.4f\tGT-III:%.4f"
+                % (mode, total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gtt_1,
+                   gtt_2, gtt_3))
             self.logger.info("#############################################")
 
             if is_val:
-                eval_loss, accuracy, f1score, macro_f1score, gs1, gs2, gs3 = \
+                eval_loss, accuracy, f1score, macro_f1score, gt1, gt2, gt3 = \
                     self.evaluate_batch_crf(data_generator, data_name, mode=val_mode,
                                             batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
 
                 metrics_dict = {"loss": eval_loss, "accuracy": accuracy, "macro_f1": macro_f1score,
                                 "f1score": f1score, "auc": auc_score,
-                                "gs1": gs1, "gs2": gs2, "gs3": gs3}
+                                "gt1": gt1, "gt2": gt2, "gt3": gt3}
                 if metrics_dict["f1score"] > max_val and save_best:
                     max_val = metrics_dict["f1score"]
                     self.save(self.save_dir, self.model_name + '.best')
 
-        self.save(self.save_dir, self.model_name+'.last')
+        self.save(self.save_dir, self.model_name + '.last')
 
         if is_test:
             self.restore(self.save_dir, self.model_name + '.best')
             self.evaluate_batch_crf(data_generator, data_name, mode=test_mode,
-                                batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
+                                    batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
 
     def evaluate_batch_crf(self, data_generator, data_name, mode='eval',
-                       batch_size=20, nb_classes=2, shuffle=False):
+                           batch_size=20, nb_classes=2, shuffle=False):
         counter, total_loss = 0, 0.0
 
-        # Useing 4 GST
+        # Useing 4 GTT
         total_labels = []
         total_pre_logits = []
         # Using 4 IR metrics
@@ -630,17 +624,18 @@ class Network(object):
         total_pre_logits_flat = np.array([])
         total_pre_scores_flat = np.array([])
 
-        for x1, x2, x3, y, sent_len, dia_len in data_generator(data_name=data_name, mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle):
+        for x1, x2, x3, y, sent_len, dia_len in data_generator(data_name=data_name, mode=mode, batch_size=batch_size,
+                                                               nb_classes=nb_classes, shuffle=shuffle):
             feed_dict = {self.input_x1: x1,
-                        self.input_x2: x2,
-                        self.input_x3: x3,
-                        self.input_y: y,
-                        self.sent_len: sent_len,
-                        self.dia_len: dia_len,
-                        self.dropout_keep_prob: 1.0}
+                         self.input_x2: x2,
+                         self.input_x3: x3,
+                         self.input_y: y,
+                         self.sent_len: sent_len,
+                         self.dia_len: dia_len,
+                         self.dropout_keep_prob: 1.0}
 
             loss, sequence, scores = self.sess.run([self.loss, self.viterbi_sequence, self.proba], feed_dict)
-            
+
             tmp_labels = np.array([])
             tmp_pre_seq = np.array([])
             tmp_pre_scores = np.array([])
@@ -653,7 +648,7 @@ class Network(object):
                     tmp_labels = np.concatenate([tmp_labels, y[batch_id, :dia_len[batch_id]]])
                     tmp_pre_seq = np.concatenate([tmp_pre_seq, sequence[batch_id, :dia_len[batch_id]]])
                     tmp_pre_scores = np.concatenate([tmp_pre_scores, scores[batch_id, :dia_len[batch_id], 1]])
-                
+
                 total_labels.append(y[batch_id, :dia_len[batch_id]])
                 total_pre_logits.append(sequence[batch_id, :dia_len[batch_id]])
 
@@ -665,72 +660,75 @@ class Network(object):
                 total_labels_flat = np.concatenate([total_labels_flat, tmp_labels], axis=0)
                 total_pre_logits_flat = np.concatenate([total_pre_logits_flat, tmp_pre_seq], axis=0)
                 total_pre_scores_flat = np.concatenate([total_pre_scores_flat, tmp_pre_scores], axis=0)
-            
+
             total_loss += loss
             counter += 1
 
-        gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=self.lamb)
+        gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=self.lamb)
 
         total_acc_sent, total_p_sent, total_r_sent, total_f1_sent, total_macro_sent, _, _ = \
             get_a_p_r_f_sara(target=total_labels_flat, predict=total_pre_logits_flat, category=1)
-        
+
         fpr, tpr, thresholds = roc_curve(total_labels_flat, total_pre_scores_flat, pos_label=1)
         auc_score = auc(fpr, tpr)
-        
+
         print(confusion_matrix(total_labels_flat, total_pre_logits_flat))
         self.logger.info(
-                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGS-I:%.4f\tGS-II:%.4f\tGS-III:%.4f"
-                % (mode, total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gst_1, gst_2, gst_3))
+            "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGT-I:%.4f\tGT-II:%.4f\tGT-III:%.4f"
+            % (
+            mode, total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gtt_1, gtt_2,
+            gtt_3))
         if mode == 'test':
             self.logger.info(
-                "Handoff point %s\tF1Score\tMacro_F1Score\tAUC\tGS-I\tGS-II\tGS-III")
+                "Handoff point %s\tF1Score\tMacro_F1Score\tAUC\tGT-I\tGT-II\tGT-III")
             self.logger.info(
                 "Metrics %s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f"
-                % (mode, total_f1_sent * 100, total_macro_sent * 100, auc_score * 100, gst_1 * 100, gst_2 * 100, gst_3 * 100))
-            tmp_lambda=0.99
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.75
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.5
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.25
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.25
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.5
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.75
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.99
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
+                % (mode, total_f1_sent * 100, total_macro_sent * 100, auc_score * 100, gtt_1 * 100, gtt_2 * 100,
+                   gtt_3 * 100))
+            tmp_lambda = 0.99
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.75
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.5
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.25
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.25
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.5
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.75
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.99
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
             self.logger.info(classification_report(total_labels_flat, total_pre_logits_flat, digits=4))
             self.logger.info(confusion_matrix(total_labels_flat, total_pre_logits_flat))
 
-        return total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, gst_1, gst_2, gst_3 
+        return total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, gtt_1, gtt_2, gtt_3
 
     def train_sup(self, data_generator, keep_prob, epochs, data_name,
-              mode='train', batch_size=20, nb_classes=2, shuffle=True,
-              is_val=True, is_test=True, save_best=True,
-              val_mode='eval', test_mode='test'):
+                  mode='train', batch_size=20, nb_classes=2, shuffle=True,
+                  is_val=True, is_test=True, save_best=True,
+                  val_mode='eval', test_mode='test'):
         max_val = 0
-        
+
         for epoch in range(epochs):
             self.logger.info('Training the model for epoch {} with batch size {}'.format(epoch, batch_size))
             print('Training the model for epoch {} with batch size {}'.format(epoch, batch_size))
             counter, total_loss = 0, 0.0
 
-            # Useing 4 GST
+            # Useing 4 GTT
             total_labels = []
             total_pre_logits = []
             # Using 4 IR metrics
@@ -739,8 +737,8 @@ class Network(object):
             total_pre_scores_flat = np.array([])
 
             for x1, x2, x3, Y, sent_len, dia_len in data_generator(data_name=data_name, mode=mode,
-                                                                    batch_size=batch_size, nb_classes=nb_classes,
-                                                                    shuffle=shuffle, epoch=epoch):
+                                                                   batch_size=batch_size, nb_classes=nb_classes,
+                                                                   shuffle=shuffle, epoch=epoch):
                 feed_dict = {self.input_x1: x1,
                              self.input_x2: x2,
                              self.input_x3: x3,
@@ -750,8 +748,8 @@ class Network(object):
                              self.dropout_keep_prob: keep_prob}
                 try:
                     _, step, loss, sequence, scores = self.sess.run([self.train_op, self.global_step,
-                                                                      self.loss, self.output, self.proba],
-                                                                     feed_dict)
+                                                                     self.loss, self.output, self.proba],
+                                                                    feed_dict)
                     Y = np.argmax(Y, -1)
                     tmp_labels = np.array([])
                     tmp_pre_seq = np.array([])
@@ -765,7 +763,7 @@ class Network(object):
                             tmp_labels = np.concatenate([tmp_labels, Y[batch_id, :dia_len[batch_id]]])
                             tmp_pre_seq = np.concatenate([tmp_pre_seq, sequence[batch_id, :dia_len[batch_id]]])
                             tmp_pre_scores = np.concatenate([tmp_pre_scores, scores[batch_id, :dia_len[batch_id], 1]])
-                        
+
                         total_labels.append(Y[batch_id, :dia_len[batch_id]])
                         total_pre_logits.append(sequence[batch_id, :dia_len[batch_id]])
 
@@ -777,52 +775,53 @@ class Network(object):
                         total_labels_flat = np.concatenate([total_labels_flat, tmp_labels], axis=0)
                         total_pre_logits_flat = np.concatenate([total_pre_logits_flat, tmp_pre_seq], axis=0)
                         total_pre_scores_flat = np.concatenate([total_pre_scores_flat, tmp_pre_scores], axis=0)
-                    
+
                     total_loss += loss
                     counter += 1
-                
+
                 except ValueError as e:
                     self.logger.info("Wrong batch.{}".format(e))
 
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=self.lamb)
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=self.lamb)
 
             total_acc_sent, total_p_sent, total_r_sent, total_f1_sent, total_macro_sent, _, _ = \
                 get_a_p_r_f_sara(target=total_labels_flat, predict=total_pre_logits_flat, category=1)
-            
+
             fpr, tpr, thresholds = roc_curve(total_labels_flat, total_pre_scores_flat, pos_label=1)
             auc_score = auc(fpr, tpr)
 
             print(confusion_matrix(total_labels_flat, total_pre_logits_flat))
             self.logger.info(
-                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGS-I:%.4f\tGS-II:%.4f\tGS-III:%.4f"
-                % (mode, total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gst_1, gst_2, gst_3))
+                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGT-I:%.4f\tGT-II:%.4f\tGT-III:%.4f"
+                % (mode, total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gtt_1,
+                   gtt_2, gtt_3))
             self.logger.info("#############################################")
 
             if is_val:
-                eval_loss, accuracy, f1score, macro_f1score, gs1, gs2, gs3 = \
+                eval_loss, accuracy, f1score, macro_f1score, gt1, gt2, gt3 = \
                     self.evaluate_batch_sup(data_generator, data_name, mode=val_mode,
                                             batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
 
                 metrics_dict = {"loss": eval_loss, "accuracy": accuracy, "macro_f1": macro_f1score,
                                 "f1score": f1score, "auc": auc_score,
-                                "gs1": gs1, "gs2": gs2, "gs3": gs3}
+                                "gt1": gt1, "gt2": gt2, "gt3": gt3}
 
                 if metrics_dict["f1score"] > max_val and save_best:
                     max_val = metrics_dict["f1score"]
                     self.save(self.save_dir, self.model_name + '.best')
 
-        self.save(self.save_dir, self.model_name+'.last')
+        self.save(self.save_dir, self.model_name + '.last')
 
         if is_test:
             self.restore(self.save_dir, self.model_name + '.best')
             self.evaluate_batch_sup(data_generator, data_name, mode=test_mode,
-                                batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
+                                    batch_size=batch_size, nb_classes=nb_classes, shuffle=False)
 
     def evaluate_batch_sup(self, data_generator, data_name, mode='eval',
-                       batch_size=20, nb_classes=2, shuffle=False):
+                           batch_size=20, nb_classes=2, shuffle=False):
         counter, total_loss = 0, 0.0
 
-        # Useing 4 GST
+        # Useing 4 GTT
         total_labels = []
         total_pre_logits = []
         # Using 4 IR metrics
@@ -830,7 +829,9 @@ class Network(object):
         total_pre_logits_flat = np.array([])
         total_pre_scores_flat = np.array([])
 
-        for x1, x2, x3, y, sent_len, dia_len, ids in data_generator(data_name=data_name, mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle):
+        for x1, x2, x3, y, sent_len, dia_len, ids in data_generator(data_name=data_name, mode=mode,
+                                                                    batch_size=batch_size, nb_classes=nb_classes,
+                                                                    shuffle=shuffle):
             feed_dict = {self.input_x1: x1,
                          self.input_x2: x2,
                          self.input_x3: x3,
@@ -853,7 +854,7 @@ class Network(object):
                     tmp_labels = np.concatenate([tmp_labels, y[batch_id, :dia_len[batch_id]]])
                     tmp_pre_seq = np.concatenate([tmp_pre_seq, sequence[batch_id, :dia_len[batch_id]]])
                     tmp_pre_scores = np.concatenate([tmp_pre_scores, scores[batch_id, :dia_len[batch_id], 1]])
-                
+
                 total_labels.append(y[batch_id, :dia_len[batch_id]])
                 total_pre_logits.append(sequence[batch_id, :dia_len[batch_id]])
 
@@ -865,59 +866,62 @@ class Network(object):
                 total_labels_flat = np.concatenate([total_labels_flat, tmp_labels], axis=0)
                 total_pre_logits_flat = np.concatenate([total_pre_logits_flat, tmp_pre_seq], axis=0)
                 total_pre_scores_flat = np.concatenate([total_pre_scores_flat, tmp_pre_scores], axis=0)
-            
+
             total_loss += loss
             counter += 1
 
-        gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=self.lamb)
+        gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=self.lamb)
 
         total_acc_sent, total_p_sent, total_r_sent, total_f1_sent, total_macro_sent, _, _ = \
             get_a_p_r_f_sara(target=total_labels_flat, predict=total_pre_logits_flat, category=1)
-        
+
         fpr, tpr, thresholds = roc_curve(total_labels_flat, total_pre_scores_flat, pos_label=1)
         auc_score = auc(fpr, tpr)
 
         print(confusion_matrix(total_labels_flat, total_pre_logits_flat))
         self.logger.info(
-                "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGS-I:%.4f\tGS-II:%.4f\tGS-III:%.4f"
-                % (mode, total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gst_1, gst_2, gst_3))
+            "Handoff %s: Loss:%.4f\tAcc:%.4f\tF1Score:%.4f\tMacro_F1Score:%.4f\tAUC:%.4f\tGT-I:%.4f\tGT-II:%.4f\tGT-III:%.4f"
+            % (
+            mode, total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, auc_score, gtt_1, gtt_2,
+            gtt_3))
         if mode == 'test':
             self.logger.info(
-                "Handoff point %s\tF1Score\tMacro_F1Score\tAUC\tGS-I\tGS-II\tGS-III")
+                "Handoff point %s\tF1Score\tMacro_F1Score\tAUC\tGT-I\tGT-II\tGT-III")
             self.logger.info(
                 "Metrics %s\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f"
-                % (mode, total_f1_sent * 100, total_macro_sent * 100, auc_score * 100, gst_1 * 100, gst_2 * 100, gst_3 * 100))
-            tmp_lambda=0.99
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.75
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.5
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.25
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=0.
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.25
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.5
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.75
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
-            tmp_lambda=-0.99
-            gst_1, gst_2, gst_3 = get_gst_score(total_labels, total_pre_logits, lamb=tmp_lambda)
-            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gst_1, gst_2, gst_3))
+                % (mode, total_f1_sent * 100, total_macro_sent * 100, auc_score * 100, gtt_1 * 100, gtt_2 * 100,
+                   gtt_3 * 100))
+            tmp_lambda = 0.99
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.75
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.5
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.25
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = 0.
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.25
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.5
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.75
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
+            tmp_lambda = -0.99
+            gtt_1, gtt_2, gtt_3 = get_gtt_score(total_labels, total_pre_logits, lamb=tmp_lambda)
+            self.logger.info("Lambda={}\t{}\t{}\t{}".format(tmp_lambda, gtt_1, gtt_2, gtt_3))
             self.logger.info(classification_report(total_labels_flat, total_pre_logits_flat))
             self.logger.info(confusion_matrix(total_labels_flat, total_pre_logits_flat))
 
-        return total_loss/float(counter), total_acc_sent, total_f1_sent, total_macro_sent, gst_1, gst_2, gst_3 
+        return total_loss / float(counter), total_acc_sent, total_f1_sent, total_macro_sent, gtt_1, gtt_2, gtt_3
 
     def save(self, model_dir, model_prefix):
         """

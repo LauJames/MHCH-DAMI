@@ -121,14 +121,13 @@ def get_a_p_r_f_sara(target, predict, category):
     return accuracy, precision, recall, f1_score, macro_f1_score, f0_5_score, f2_score
 
 
-def golden_switch_within_tolerance_exp(pre_labels, true_labels, t=1, eps=1e-7, lamb=0):
+def golden_transfer_within_tolerance_exp(pre_labels, true_labels, t=1, eps=1e-7, lamb=0):
     if t <= 0:
         raise ValueError("Tolerance must be positive!!!")
     if not isinstance(t, int):
         raise TypeError("Tolerance must be Integer!!!")
 
-    gst_score = 0
-    # get suggest switch position according to true labels
+    # get suggest transfer position according to true labels
     suggest_indices = []
     for idx, label in enumerate(true_labels):
         if label == 1:
@@ -141,14 +140,14 @@ def golden_switch_within_tolerance_exp(pre_labels, true_labels, t=1, eps=1e-7, l
 
     if len(suggest_indices) == 0:
         if len(pre_indices) == 0:
-            gst_score = 1
+            gtt_score = 1
         else:
-            gst_score = 0
+            gtt_score = 0
     else:
         if len(pre_indices) == 0:
-            gst_score = 0
+            gtt_score = 0
         else:
-            GST_score_list = []
+            gtt_score_list = []
             for pre_idx in pre_indices:
                 tmp_score_list = []
                 for suggest_idx in suggest_indices:
@@ -158,21 +157,22 @@ def golden_switch_within_tolerance_exp(pre_labels, true_labels, t=1, eps=1e-7, l
                     adjustment_cofficient = 1. / (1 - lamb * (np.sign(pre_bias)))
                     tmp_score = math.exp(- adjustment_cofficient * math.pow(pre_bias, 2) / (2 * math.pow((t + eps), 2)))
                     tmp_score_list.append(tmp_score)
-                GST_score_list.append(np.max(tmp_score_list))
-            gst_score = np.mean(GST_score_list)
-    return gst_score
+                gtt_score_list.append(np.max(tmp_score_list))
+            gtt_score = np.mean(gtt_score_list)
+    return gtt_score
 
 
-def get_gst_score(label_list, pre_list, lamb=0.):
-    gst_score_list_1 = []
-    gst_score_list_2 = []
-    gst_score_list_3 = []
+def get_gtt_score(label_list, pre_list, lamb=0.):
+    gtt_score_list_1 = []
+    gtt_score_list_2 = []
+    gtt_score_list_3 = []
     for pres, labels in zip(pre_list, label_list):
-        gst_score_list_1.append(golden_switch_within_tolerance_exp(pres, labels, t=1, lamb=lamb))
-        gst_score_list_2.append(golden_switch_within_tolerance_exp(pres, labels, t=2, lamb=lamb))
-        gst_score_list_3.append(golden_switch_within_tolerance_exp(pres, labels, t=3, lamb=lamb))
+        gtt_score_list_1.append(golden_transfer_within_tolerance_exp(pres, labels, t=1, lamb=lamb))
+        gtt_score_list_2.append(golden_transfer_within_tolerance_exp(pres, labels, t=2, lamb=lamb))
+        gtt_score_list_3.append(golden_transfer_within_tolerance_exp(pres, labels, t=3, lamb=lamb))
 
-    return np.mean(gst_score_list_1), np.mean(gst_score_list_2), np.mean(gst_score_list_3)
+    return np.mean(gtt_score_list_1), np.mean(gtt_score_list_2), np.mean(gtt_score_list_3)
+
 
 if __name__ == "__main__":
     pass
