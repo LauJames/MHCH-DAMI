@@ -1,0 +1,8 @@
+{
+    "data_name": "makeup",
+    "train_size": 3200,
+    "val_size": 400,
+    "test_size": 400,
+    "nb_words": 12217,
+    "nb_classes": 2
+  }

@@ -1,0 +1,6 @@
+Keras==2.2.5
+tqdm==4.35.0
+jieba==0.39
+snownlp
+tensorflow-gpu==1.14
+gensim==3.8.3

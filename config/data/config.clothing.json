@@ -1,0 +1,8 @@
+{
+    "data_name": "clothing",
+    "train_size": 2800,
+    "val_size": 350,
+    "test_size": 350,
+    "nb_words": 8850,
+    "nb_classes": 2
+  }
