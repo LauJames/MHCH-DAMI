@@ -79,21 +79,6 @@ class DataPrepare(object):
         self.pre_train_embeddings_path = curdir + '/data/w2v/cbow.word2vec.200d'
         self.embed_size = embed_size
 
-        self.logger = logging.getLogger("Data Preprocessing")
-        self.logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-        if log_path:
-            file_handler = logging.FileHandler(log_path)
-            file_handler.setLevel(logging.INFO)
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
-        else:
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.INFO)
-            console_handler.setFormatter(formatter)
-            self.logger.addHandler(console_handler)
-
         self.dialogues_list = []
         self.role_list = []
         self.deal_list = []
@@ -130,7 +115,7 @@ class DataPrepare(object):
             raise ValueError("{}: File {} is not exist.".format(now_time, data_path))
 
         with open(data_path, 'r', encoding='utf-8', errors='ignore', newline='\n') as fin:
-            self.logger.info("Open {} successfully.".format(data_path))
+            print("Open {} successfully.".format(data_path))
 
             error_num, count = 0, 0
             while True:
@@ -138,11 +123,11 @@ class DataPrepare(object):
                     line = fin.readline()
                     count += 1
                 except IOError as e:
-                    self.logger.info(e)
+                    print(e)
                     error_num += 1
                     continue
                 if not line:
-                    self.logger.info("Load data successfully!")
+                    print("Load data successfully!")
                     break
 
                 try:
@@ -153,7 +138,7 @@ class DataPrepare(object):
 
                 except ValueError as e:
                     error_num += 1
-                    self.logger.info("error line of json format: {}".format(line))
+                    print("error line of json format: {}".format(line))
 
     def _load_vocab(self, vocab_path):
         """
@@ -243,7 +228,7 @@ class DataPrepare(object):
         self.tf_list_reshape = np.reshape(self.tf_list, (-1, 50))
         self.tf_list_reshape = ss_tf.fit_transform(self.tf_list_reshape)
         self.tf_list = np.reshape(self.tf_list_reshape, (-1, 30, 50))
-        self.logger.info("Transform all data {} to id successfully!".format(len(self.dialogues_len_list)))
+        print("Transform all data {} to id successfully!".format(len(self.dialogues_len_list)))
 
     def gen_vocab(self, min_cnt=2):
         """
@@ -258,9 +243,9 @@ class DataPrepare(object):
         unfiltered_vocab_size = vocab.size()
         vocab.filter_tokens_by_cnt(min_cnt=min_cnt)
         filtered_num = unfiltered_vocab_size - vocab.size()
-        self.logger.info('After filter {} tokens, the final vocab size is {}'.format(filtered_num, vocab.size()))
+        print('After filter {} tokens, the final vocab size is {}'.format(filtered_num, vocab.size()))
 
-        self.logger.info('Assigning embedding ...')
+        print('Assigning embedding ...')
         if self.use_pre_train:
             print('Pre trained')
             vocab.load_pretrained_embeddings(self.pre_train_embeddings_path)
@@ -268,13 +253,13 @@ class DataPrepare(object):
             print('Random')
             vocab.randomly_init_embeddings(self.embed_size)
 
-        self.logger.info('Saving vocab ...')
-        self.logger.info('vocab size is: {}'.format(vocab.size()))
-        self.logger.info('pos to id dict size is {}'.format(len(vocab.pos2id)))
+        print('Saving vocab ...')
+        print('vocab size is: {}'.format(vocab.size()))
+        print('pos to id dict size is {}'.format(len(vocab.pos2id)))
 
         with open(self.vocab_save_path, 'wb') as fout:
             pkl.dump(vocab, fout)
-        self.logger.info('Done with vocab!')
+        print('Done with vocab!')
         return vocab
 
     def desensitization(self):
@@ -283,7 +268,7 @@ class DataPrepare(object):
         vocab.desensitization()
         with open(self.vocab_save_path, 'wb') as fout:
             pkl.dump(vocab, fout)
-        self.logger.info('Done with desensitization!')
+        print('Done with desensitization!')
 
     def save_data(self, mode='train'):
         """
@@ -314,7 +299,7 @@ class DataPrepare(object):
             pkl.dump(self.dialogues_len_list, fout)
             pkl.dump(self.label_list, fout)
 
-        self.logger.info("Save variable into {}".format(load_path))
+        print("Save variable into {}".format(load_path))
 
     def load_pkl_data(self, mode='train'):
         if mode == 'train':
@@ -341,7 +326,7 @@ class DataPrepare(object):
                 self.dialogues_sent_len_list = pkl.load(fin)
                 self.dialogues_len_list = pkl.load(fin)
                 self.label_list = pkl.load(fin)
-            self.logger.info("Load variable from {} successfully!".format(load_path))
+            print("Load variable from {} successfully!".format(load_path))
 
     def load_config(self, config_path):
         with open(config_path, 'r') as fp:
