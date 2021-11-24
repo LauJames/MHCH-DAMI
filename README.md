@@ -19,7 +19,7 @@ Tensorflow implementation of the AAAI-2021 paper: [Time to Transfer: Predicting 
 * CUDA 10.2
 
 ## Data Example
-```json
+```
 C2B: *产品链接* 	(*URL of a product*)	[Normal]
 C2B: 买二送一。	(Buy two free one.)	[Normal]
 B2C: 亲亲您可以直接拍下您喜欢的(同一链接内)的3双加入购物车,付款的时候系统会在的减价的哦~ 	(Dear,  you can add your favorite three goods to shopping cart directly. The system will cut the price automatically when you pay! )	[Normal]

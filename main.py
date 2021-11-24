@@ -14,9 +14,7 @@ import pickle as pkl
 import logging
 import argparse
 import warnings
-
-warnings.filterwarnings('ignore', category=FutureWarning)
-
+warnings.filterwarnings('ignore',category=FutureWarning)
 from Network import Network
 from networks.DAMI import DAMI
 
@@ -34,7 +32,7 @@ def main():
     parser = argparse.ArgumentParser('Tensorflow')
     parser.add_argument('--phase', default='train',
                         help='Phase: Can be train or predict, the default value is train.')
-    parser.add_argument('--data_name', default='cloth',
+    parser.add_argument('--data_name', default='makeup',
                         help='Data_Name: The data you will use.')
     parser.add_argument('--model_name', default='dami',
                         help='Model_Name: The model you will use.')
@@ -50,9 +48,9 @@ def main():
                         help='suffix for differentiate log.')
     parser.add_argument('--mode', default='train',
                         help='mode fold you will try.')
-    parser.add_argument('--ways', default='dami',
+    parser.add_argument('--ways', default='dami', 
                         help='whether to use supervised method or position or deal.')
-    parser.add_argument('--use_pretrain', default='1',
+    parser.add_argument('--use_pretrain', default='1', 
                         help='whether to use supervised method or position or deal.')
 
     args = parser.parse_args()
@@ -69,7 +67,7 @@ def main():
 
     # log file name setting
     log_path = args.log_path + args.model_name + '.' + args.data_name + '.' + args.phase + args.suffix \
-               + '.' + args.mode + '.' + args.ways + '.' + now_time + '.log'
+                + '.' + args.mode + '.' + args.ways + '.' + now_time + '.log'
 
     if os.path.exists(log_path):
         os.remove(log_path)
@@ -175,25 +173,24 @@ def main():
                                                                       int((int(time.time()) - start_t) % 3600 % 60)))
     print("DONE!")
 
-
 def train(network, data_generator, keep_prob, epochs, data_name,
           mode='train', batch_size=20, nb_classes=2, shuffle=True,
           is_val=True, is_test=True, save_best=True, ways='crf'):
     if ways == 'crf':
         network.train_crf(data_generator=data_generator, keep_prob=keep_prob, epochs=epochs, data_name=data_name,
-                          mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle,
-                          is_val=is_val, is_test=is_test, save_best=save_best)
+                    mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle,
+                    is_val=is_val, is_test=is_test, save_best=save_best)
     elif ways == 'sup':
         network.train_sup(data_generator=data_generator, keep_prob=keep_prob, epochs=epochs, data_name=data_name,
-                          mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle,
-                          is_val=is_val, is_test=is_test, save_best=save_best)
+                    mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle,
+                    is_val=is_val, is_test=is_test, save_best=save_best)
     elif ways == 'dami':
         network.train(data_generator=data_generator, keep_prob=keep_prob, epochs=epochs, data_name=data_name,
-                      mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle,
-                      is_val=is_val, is_test=is_test, save_best=save_best)
+                    mode=mode, batch_size=batch_size, nb_classes=nb_classes, shuffle=shuffle,
+                    is_val=is_val, is_test=is_test, save_best=save_best)
     else:
         raise ValueError("Wrong data generator! Please check the 'ways' you input.")
 
-
+    
 if __name__ == '__main__':
     main()

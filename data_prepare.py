@@ -331,64 +331,7 @@ class DataPrepare(object):
     def load_config(self, config_path):
         with open(config_path, 'r') as fp:
             return json.load(fp)
-
-    def data_generator_sup(self, data_name='makeup', mode='test', batch_size=32, shuffle=True, nb_classes=2):
-        print('Using data_generator_sup')
-        self.load_pkl_data(mode=mode)
-        x1 = self.dialogues_ids_list
-        x2 = self.role_list
-        x3 = self.senti_list
-        label_list = self.label_list
-        sent_len = self.dialogues_sent_len_list
-        dia_len = self.dialogues_len_list
-
-        print("Total {} dialogues in {} mode".format(len(self.dialogues_ids_list), mode))
-
-        for i in tqdm(range(0, len(label_list), batch_size), desc="Processing:"):
-            batch_x1 = pad_sequences(x1[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                     dtype='float32')
-            # role
-            batch_x2 = pad_sequences(x2[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                     dtype='float32')
-            batch_x3 = pad_sequences(x3[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                     dtype='float32')
-            batch_sent_len = pad_sequences(sent_len[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                           dtype='int32')
-            batch_dia_len = dia_len[i: i + batch_size]
-            # [B, D_len, nb_classes]
-            labels_padded = pad_sequences(label_list[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                          dtype='int32', value=0)
-            batch_labels = to_categorical(labels_padded, nb_classes, dtype='int32')
-
-            yield batch_x1, batch_x2, batch_x3, batch_labels, batch_sent_len, batch_dia_len
-
-    def data_generator_crf(self, data_name='makeup', mode='test', batch_size=32, shuffle=True, nb_classes=2):
-        print('Using data_generator_crf')
-        self.load_pkl_data(mode=mode)
-        x1 = self.dialogues_ids_list
-        x2 = self.role_list
-        x3 = self.senti_list
-        label_list = self.label_list
-        sent_len = self.dialogues_sent_len_list
-        dia_len = self.dialogues_len_list
-
-        print("Total {} dialogues in {} mode".format(len(x1), mode))
-
-        for i in tqdm(range(0, len(label_list), batch_size), desc="Processing:"):
-            batch_x1 = pad_sequences(x1[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                     dtype='float32')
-            batch_x2 = pad_sequences(x2[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                     dtype='float32')
-            batch_x3 = pad_sequences(x3[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                     dtype='float32')
-            batch_sent_len = pad_sequences(sent_len[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                           dtype='int32')
-            batch_dia_len = dia_len[i: i + batch_size]
-            labels_padded = pad_sequences(label_list[i: i + batch_size], maxlen=30, padding='post', truncating='post',
-                                          dtype='int32', value=0)
-
-            yield batch_x1, batch_x2, batch_x3, labels_padded, batch_sent_len, batch_dia_len
-
+            
 
 if __name__ == '__main__':
 

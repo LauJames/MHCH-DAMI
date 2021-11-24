@@ -1,23 +1,23 @@
 {
-    "model_name": "dami",
-    "data_mode": "cloth",
+  "model_name": "dami",
+  "pos2id": 52,
 
-    "embedding_dim": 200,
-    "rnn_dim": 128,
-    "dense_dim": 128,
-    "keep_prob": 0.75,
+  "embedding_dim": 200,
+  "rnn_dim": 128,
+  "dense_dim": 128,
+  "keep_prob": 0.72,
 
-    "learning_rate": 0.0075,
-    "weight_decay": 0.0,
-    "l2_reg_lambda": 0.0001,
-    "optimizer": "adam",
-    "batch_size": 128,
-    "epochs": 30,
+  "learning_rate": 0.0075,
+  "weight_decay": 0.0,
+  "l2_reg_lambda": 0.0,
+  "optimizer": "adam",
+  "batch_size": 128,
+  "epochs": 30,
 
-    "mode": "train",
-    "is_val": 1,
-    "is_test": 1,
-    "save_best": 1,
-    "shuffle": 1,
-    "monitor": "f1score"
-  }
+  "mode": "train",
+  "is_val": 1,
+  "is_test": 1,
+  "save_best": 1,
+  "shuffle": 1,
+  "monitor": "f1score"
+}
