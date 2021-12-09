@@ -96,6 +96,16 @@ class Data_loader(object):
         with open(config_path, 'r') as fp:
             return json.load(fp)
 
+    @staticmethod
+    def cut_sent_len(lens_list, max_len=50):
+        new_lens_list = []
+        for tmp_lens in lens_list:
+            tmp_new_lens = []
+            for tmp in tmp_lens:
+                tmp_new_lens.append(tmp if tmp < max_len else 50)
+            new_lens_list.append(tmp_new_lens)
+        return new_lens_list
+
     def data_generator_sup(self, data_name='makeup', mode='test', batch_size=32, shuffle=True, nb_classes=2, epoch=0):
         print('Using data_generator_sup')
         self.load_pkl_data(mode=mode)
@@ -103,7 +113,7 @@ class Data_loader(object):
         x2 = self.role_list
         x3 = self.senti_list
         label_list = self.label_list
-        sent_len = self.dialogues_sent_len_list
+        sent_len = self.cut_sent_len(self.dialogues_sent_len_list)
         dia_len = self.dialogues_len_list
 
         if shuffle or mode == 'train':
@@ -136,7 +146,7 @@ class Data_loader(object):
         x2 = self.role_list
         x3 = self.senti_list
         label_list = self.label_list
-        sent_len = self.dialogues_sent_len_list
+        sent_len = self.cut_sent_len(self.dialogues_sent_len_list)
         dia_len = self.dialogues_len_list
 
         if shuffle or mode == 'train':
@@ -170,7 +180,7 @@ class Data_loader(object):
         pos_list = self.pos_list
 
         label_list = self.label_list
-        sent_len = self.dialogues_sent_len_list
+        sent_len = self.cut_sent_len(self.dialogues_sent_len_list)
         dia_len = self.dialogues_len_list
 
         if shuffle or mode == 'train':

@@ -55,16 +55,16 @@ class DataPrepare(object):
         if data_name == 'clothing':
             dataset_folder_name = '/data' + '/clothing'
             self.raw_dialogue_path = curdir + dataset_folder_name + '/cloth_annotated_3500.shuf.json'
-            self.train_raw_path = curdir + dataset_folder_name + '/hmt_cloth_train.json'
-            self.val_raw_path = curdir + dataset_folder_name + '/hmt_cloth_eval.json'
-            self.test_raw_path = curdir + dataset_folder_name + '/hmt_cloth_test.json'
+            self.train_raw_path = curdir + dataset_folder_name + '/mhch_cloth_train.json'
+            self.val_raw_path = curdir + dataset_folder_name + '/mhch_cloth_eval.json'
+            self.test_raw_path = curdir + dataset_folder_name + '/mhch_cloth_test.json'
 
         elif data_name == 'makeup':
             dataset_folder_name = '/data' + '/makeup'
             self.raw_dialogue_path = curdir + dataset_folder_name + '/makeup_annotated_4000.shuf.json'
-            self.train_raw_path = curdir + dataset_folder_name + '/hmt_makeup_train.json'
-            self.val_raw_path = curdir + dataset_folder_name + '/hmt_makeup_eval.json'
-            self.test_raw_path = curdir + dataset_folder_name + '/hmt_makeup_test.json'
+            self.train_raw_path = curdir + dataset_folder_name + '/mhch_makeup_train.json'
+            self.val_raw_path = curdir + dataset_folder_name + '/mhch_makeup_eval.json'
+            self.test_raw_path = curdir + dataset_folder_name + '/mhch_makeup_test.json'
 
         else:
             raise ValueError("Please confirm the correct data mode you entered.")
